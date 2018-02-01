@@ -80,7 +80,7 @@ function _request(node, action, host, body, callback) {
   const id = getId(node, action);
   const socket = createSocket(host, id, node, timeout(requestTimeout, (err, socket) => {
     if (err) {
-      callback(null, '');
+      if (callback) callback(null, '');
       return;
     }
     node.log('emit '+action);
@@ -88,7 +88,7 @@ function _request(node, action, host, body, callback) {
       setTimeout(() => {
         removeSocket(host, id, node);
       }, connectTimeout);
-      callback(null, data);
+      if (callback) callback(null, data);
     });
   }));
 }
@@ -96,11 +96,19 @@ function _request(node, action, host, body, callback) {
 class Play {
   constructor(){
     this.org_message = null;
+    this.canceled = true;
   }
 
   textToSpeech(node, message, host, params, callback) {
     params.message = message;
     _request(node, 'text-to-speech', host, params, callback);
+  }
+
+  stop(node) {
+    if (this.canceled === false && this.host) {
+      _request(node, 'stop-text-to-speech', this.host, {});
+      this.canceled = true;
+    }
   }
 
   delay(time, callback) {
@@ -137,6 +145,10 @@ class Play {
     }, callback);
   }
 
+  quizCommand(node, host, params, callback) {
+    _request(node, 'quiz-command', host, params, callback);
+  }
+
   doShuffle() {
     for (var i=0;i<this.shuffle.length*10;i++) {
       const a = getRndInteger(0, this.shuffle.length);
@@ -151,11 +163,15 @@ class Play {
   getMessage(messages) {
     if (this.org_message == null || this.org_message != messages) {
       this.org_message = messages;
+      var n = 0;
       const res = [];
       this.shuffle = [];
       messages.split('\n').forEach( (line, i) => {
-        res.push(line.split(':'));
-        this.shuffle.push(i);
+        if (line != '') {
+          res.push(line.split(':'));
+          this.shuffle.push(n);
+          n++;
+        }
       });
       this.messages = res;
       this.doShuffle();
@@ -163,12 +179,16 @@ class Play {
     return this.messages;
   }
 
-  request(node, host, params, callback) {
+  request(node, msg, params, callback) {
+    this.canceled = false;
+    const { robotHost } = msg;
+    const host = robotHost;
+    this.host = host;
     const messages = this.getMessage(params.message);
     var cmd = [];
 
     const doCmd = (callback) => {
-      if (cmd.length <= 0) {
+      if (cmd.length <= 0 || this.canceled) {
         callback();
         return;
       }
@@ -212,6 +232,98 @@ class Play {
           }
           doCmd(callback);
         });
+      } else
+      if (d == 'quiz.question' || d.indexOf('クイズ.送信') >= 0) {
+        this.quizCommand(node, host, {
+          action: 'quiz',
+          question: msg.quiz.question,
+          choices: msg.quiz.choices,
+          time: msg.quiz.timeLimit,
+          pages: msg.quiz.pages,
+          sideImage: msg.quiz.sideImage,
+          answers: [],
+        }, (err, res) => {
+          if (err) {
+            callback(err, 'ERR');
+            return;
+          }
+          doCmd(callback);
+        });
+      } else
+      if (d == 'quiz.start' || d.indexOf('クイズ.開始') >= 0 ||
+          d == 'quiz.countdown' || d.indexOf('クイズ.カウントダウン') >= 0) {
+        this.quizCommand(node, host, {
+          action: 'start',
+          question: msg.quiz.question,
+          choices: msg.quiz.choices,
+          time: msg.counter,
+          answers: [],
+        }, (err, res) => {
+          if (err) {
+            callback(err, 'ERR');
+            return;
+          }
+          doCmd(callback);
+        });
+      } else
+      if (d == 'quiz.answer' || d.indexOf('クイズ.解答') >= 0) {
+        this.quizCommand(node, host, {
+          action: 'answer',
+          question: msg.quiz.question,
+          choices: msg.quiz.choices,
+          answers: msg.quiz.answers,
+        }, (err, res) => {
+          if (err) {
+            callback(err, 'ERR');
+            return;
+          }
+          doCmd(callback);
+        });
+      } else
+      if (d == 'quiz.end' || d.indexOf('クイズ.終了') >= 0) {
+        this.quizCommand(node, host, {
+          action: 'wait',
+        }, (err, res) => {
+          if (err) {
+            callback(err, 'ERR');
+            return;
+          }
+          doCmd(callback);
+        });
+      } else
+      if (d == 'quiz.timeup' || d.indexOf('クイズ.タイムアップ') >= 0) {
+        this.quizCommand(node, host, {
+          action: 'stop',
+          question: msg.quiz.question,
+          choices: msg.quiz.choices,
+          time: 0,
+          answers: [],
+        }, (err, res) => {
+          if (err) {
+            callback(err, 'ERR');
+            return;
+          }
+          doCmd(callback);
+        });
+      } else
+      if (d.indexOf('quiz.slide') >= 0 || d.indexOf('クイズ.スライド') >= 0) {
+        const m = d.match(/\/(.+)/);
+        if (m) {
+          this.quizCommand(node, host, {
+            action: 'slide',
+            photo: `${host}/${m[1]}`,
+          }, (err, res) => {
+            if (err) {
+              callback(err, 'ERR');
+              return;
+            }
+            doCmd(callback);
+          });
+        } else {
+          doCmd(callback);
+        }
+      } else
+      if (d.indexOf('quiz.result') >= 0 || d.indexOf('クイズ.結果') >= 0) {
       } else
       if (d == 'marisa' || d.indexOf('魔理沙') >= 0) {
         params.voice = 'marisa';
@@ -263,94 +375,112 @@ class Play {
       }
     }
 
+    function checkMessage(messages) {
+      return messages.some( m => {
+        return (m[0] != '');
+      });
+    }
+
     if (params.algorithm === 'shuffle') {
       const ptr = this.shufflePtr;
       var done = false;
-      while (true) {
-        if (this.shufflePtr >= this.shuffle.length) {
-          this.shufflePtr = 0;
-          break;
-        }
-        let msg = messages[this.shuffle[this.shufflePtr]][0];
-        if (msg == '') {
-        } else {
-          if (params.silence) {
-            callback(err, msg);
-          } else {
-            this.textToSpeech(node, msg, host, params, (err, res) => {
-              callback(err, msg);
-            });
+      if (!checkMessage(messages)) {
+        callback(null, '');
+      } else {
+        while (!this.canceled) {
+          if (this.shufflePtr >= this.shuffle.length) {
+            this.shufflePtr = 0;
+            break;
           }
-          done = true;
+          let msg = messages[this.shuffle[this.shufflePtr]][0];
+          if (msg == '') {
+          } else {
+            if (params.silence) {
+              callback(err, msg);
+            } else {
+              this.textToSpeech(node, msg, host, params, (err, res) => {
+                callback(err, msg);
+              });
+            }
+            done = true;
+          }
+          this.shufflePtr++;
+          if (this.shufflePtr >= this.shuffle.length) {
+            this.doShuffle();
+          }
+          //一周するか発話したら終了
+          if (ptr == this.shufflePtr || done) break;
         }
-        this.shufflePtr++;
-        if (this.shufflePtr >= this.shuffle.length) {
-          this.doShuffle();
-        }
-        //一周するか発話したら終了
-        if (ptr == this.shufflePtr || done) break;
       }
     } else
     if (params.algorithm === 'random') {
       this.doShuffle();
       const ptr = this.shufflePtr;
       var done = false;
-      while (true) {
-        if (this.shufflePtr >= this.shuffle.length) {
-          this.shufflePtr = 0;
-          break;
-        }
-        let msg = messages[this.shuffle[this.shufflePtr]][0];
-        if (msg == '') {
-        } else {
-          if (params.silence) {
-            callback(err, msg);
-          } else {
-            this.textToSpeech(node, msg, host, params, (err, res) => {
-              callback(err, msg);
-            });
+      if (!checkMessage(messages)) {
+        callback(null, '');
+      } else {
+        while (!this.canceled) {
+          if (this.shufflePtr >= this.shuffle.length) {
+            this.shufflePtr = 0;
+            break;
           }
-          done = true;
+          let msg = messages[this.shuffle[this.shufflePtr]][0];
+          if (msg == '') {
+          } else {
+            if (params.silence) {
+              callback(err, msg);
+            } else {
+              this.textToSpeech(node, msg, host, params, (err, res) => {
+                callback(err, msg);
+              });
+            }
+            done = true;
+          }
+          this.shufflePtr++;
+          if (this.shufflePtr >= this.shuffle.length) {
+            this.doShuffle();
+          }
+          //一周するか発話したら終了
+          if (ptr == this.shufflePtr || done) break;
         }
-        this.shufflePtr++;
-        if (this.shufflePtr >= this.shuffle.length) {
-          this.doShuffle();
-        }
-        //一周するか発話したら終了
-        if (ptr == this.shufflePtr || done) break;
       }
     } else
     if (params.algorithm === 'onetime') {
       const ptr = this.shufflePtr;
       var done = false;
-      while (true) {
-        if (this.shufflePtr >= messages.length) {
-          this.shufflePtr = 0;
-          break;
-        }
-        let msg = messages[this.shufflePtr][0];
-        if (msg == '') {
-        } else {
-          if (params.silence) {
-            callback(err, msg);
-          } else {
-            this.textToSpeech(node, msg, host, params, (err, res) => {
-              callback(err, msg);
-            });
+      if (!checkMessage(messages)) {
+        callback(null, '');
+      } else {
+        while (!this.canceled) {
+          if (this.shufflePtr >= messages.length) {
+            this.shufflePtr = 0;
+            break;
           }
-          done = true;
+          let msg = messages[this.shufflePtr][0];
+          if (msg == '') {
+          } else {
+            if (params.silence) {
+              callback(err, msg);
+            } else {
+              this.textToSpeech(node, msg, host, params, (err, res) => {
+                callback(err, msg);
+              });
+            }
+            done = true;
+          }
+          this.shufflePtr++;
+          if (this.shufflePtr >= this.shuffle.length) {
+            this.doShuffle();
+          }
+          //一周するか発話したら終了
+          if (ptr == this.shufflePtr || done) break;
         }
-        this.shufflePtr++;
-        if (this.shufflePtr >= this.shuffle.length) {
-          this.doShuffle();
-        }
-        //一周するか発話したら終了
-        if (ptr == this.shufflePtr || done) break;
       }
     } else {
       var i = 0;
       const play = () => {
-        if (i >= messages.length) {
+        if (i >= messages.length || this.canceled) {
           callback(null, 'OK');
           return;
         }
@@ -457,19 +587,30 @@ module.exports = function(RED) {
           url = mustache.render(nodeUrl, msg);
       }
       msg.robotHost = url;
+      node.socket_info = {
+        url, id,
+      }
       const socket = createSocket(url, id, node, timeout(requestTimeout, (err, socket) => {
         if (err) {
+          clearTimeout(node.socket_info.timeout);
+          node.socket_info.timeout = null;
           removeSocket(url, id, node);
           node.send(msg);
           return;
         }
-        setTimeout(() => {
+        node.socket_info.timeout = setTimeout(() => {
+          node.socket_info.timeout = null;
           removeSocket(url, id, node);
         }, connectTimeout);
         node.send(msg);
       }));
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
+      removeSocket(node.socket_info.url, node.socket_info.id, node);
+      if (node.socket_info.timeout) {
+        clearTimeout(node.socket_info.timeout);
+        node.socket_info.timeout = null;
+      }
       done();
     });
   }
@@ -485,7 +626,7 @@ module.exports = function(RED) {
       msg.robotParams = params;
       node.send(msg);
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
       done();
     });
   }
@@ -511,18 +652,23 @@ module.exports = function(RED) {
     node.algorithmPlay = new Play();
     var params = {};
     node.on("input", function(msg) {
+      node.playing = true;
       node.status({fill:"blue",shape:"dot"});
       params.message = msg.payload;
       params = getParams(params, msg.robotParams);
       params = getParams(params, config);
-      node.algorithmPlay.request(node, msg.robotHost, params, function(err, res) {
+      node.algorithmPlay.request(node, msg, params, function(err, res) {
+        if (!node.playing) return;
         node.log(res);
         msg.result = res;
         node.send(msg);
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
+      node.playing = false;
+      node.algorithmPlay.stop(node);
+      node.status({});
       done();
     });
   }
@@ -536,15 +682,30 @@ module.exports = function(RED) {
       param.timeout = config.timeout;
     }
     node.on("input", function(msg) {
+      node.recording = true;
       node.status({fill:"blue",shape:"dot"});
+      node.robotHost = msg.robotHost;
       _request(node, 'speech-to-text', msg.robotHost, param, function(err, res) {
+        if (!node.recording) return;
         node.log(res);
-        msg.payload = res;
-        node.send(msg);
+        if (res == '[timeout]') {
+          msg.payload = 'timeout';
+          node.send([null, msg]);
+        } else
+        if (res == '[canceled]') {
+          msg.payload = 'canceled';
+          node.send([null, msg]);
+        } else {
+          msg.payload = res;
+          node.send([msg, null]);
+        }
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
+      node.recording = false;
+      _request(node, 'stop-speech-to-text', node.robotHost, {});
+      node.status({});
       done();
     });
   }
@@ -555,20 +716,30 @@ module.exports = function(RED) {
     var node = this;
     node.algorithmPlay = new Play();
     var params = {};
-    node.utterance = config.utterance;
+    var utterance = config.utterance;
+    var isTemplatedUrl = (utterance||"").indexOf("{{") != -1;
+    node.utterance = utterance;
     node.on("input", function(msg) {
+      node.playing = true;
       node.status({fill:"blue",shape:"dot"});
       params.message = node.utterance;
+      if (isTemplatedUrl) {
+          params.message = mustache.render(node.utterance, msg);
+      }
       params = getParams(params, msg.robotParams);
       params = getParams(params, config);
-      node.algorithmPlay.request(node, msg.robotHost, params, function(err, res) {
+      node.algorithmPlay.request(node, msg, params, function(err, res) {
+        if (!node.playing) return;
         node.log(res);
         msg.result = res;
         node.send(msg);
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
+      node.playing = false;
+      node.algorithmPlay.stop(node);
+      node.status({});
       done();
     });
   }
@@ -591,8 +762,9 @@ module.exports = function(RED) {
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
       done();
+      node.status({});
     });
   }
   RED.nodes.registerType("chat",DocomoChatNode);
@@ -611,8 +783,9 @@ module.exports = function(RED) {
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
       done();
+      node.status({});
     });
   }
   RED.nodes.registerType("command",CommandNode);
@@ -631,8 +804,9 @@ module.exports = function(RED) {
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
       done();
+      node.status({});
     });
   }
   RED.nodes.registerType("open-slide",OpenSlideNode);
@@ -651,8 +825,9 @@ module.exports = function(RED) {
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
       done();
+      node.status({});
     });
   }
   RED.nodes.registerType("next-page",NextPageNode);
@@ -671,8 +846,9 @@ module.exports = function(RED) {
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
       done();
+      node.status({});
     });
   }
   RED.nodes.registerType("close-slide",CloseSlideNode);
@@ -707,8 +883,9 @@ module.exports = function(RED) {
         node.status({});
       });
     });
-    this.on('close', function(removed, done) {
+    node.on('close', function(removed, done) {
       done();
+      node.status({});
     });
   }
   RED.nodes.registerType("mecab",MecabNode);
@@ -735,6 +912,9 @@ module.exports = function(RED) {
       node.send(msg);
       node.status({});
     });
+    node.on("close", function() {
+      node.status({});
+    });
   }
   RED.nodes.registerType("topic-fork",TopicForkNode);
 
@@ -742,11 +922,14 @@ module.exports = function(RED) {
     RED.nodes.createNode(this,config);
     var node = this;
     node.on("input", function(msg) {
+      console.log(JSON.stringify(msg, null, '  '));
+      console.log(msg.topicId);
       node.status({fill:"blue",shape:"dot"});
       while (true) {
         if (typeof node.context().global.get('topicForks') !== 'undefined' && typeof msg.topicId !== 'undefined') {
           const topicForks = node.context().global.get('topicForks');
           topicForks[msg.topicId].count --;
+          console.log(`msg.topicName ${msg.topicName}`);
           if (typeof msg.topicPriority !== 'undefined' && topicForks[msg.topicId].priority < msg.topicPriority) {
             topicForks[msg.topicId].priority = msg.topicPriority;
             topicForks[msg.topicId].name = msg.topicName;
@@ -757,16 +940,22 @@ module.exports = function(RED) {
             if (typeof topicForks[msg.topicId].msg.topicName !== 'undefined') {
               node.context().global.set('topic', topicForks[msg.topicId].msg.topicName);
               topicForks[msg.topicId].msg.topic = topicForks[msg.topicId].msg.topicName;
+              node.send(topicForks[msg.topicId].msg);
             } else {
-              node.context().global.set('topic', null);
+              //node.context().global.set('topic', null);
+              node.send(msg);
             }
-            node.send(topicForks[msg.topicId].msg);
+            console.log(msg.topicId);
+            console.log(JSON.stringify(topicForks[msg.topicId].msg, null, '  '));
             break;
           }
         }
         node.send(null);
         break;
       }
+      node.status({});
+    });
+    node.on("close", function() {
       node.status({});
     });
   }
@@ -778,8 +967,11 @@ module.exports = function(RED) {
     node.on("input", function(msg) {
       node.status({fill:"blue",shape:"dot"});
       msg.topicName = config.topic;
-      msg.topicPriority = parseInt(config.priority);
+      msg.topicPriority = (msg.topicPriority) ? msg.topicPriority : parseInt(config.priority);
       node.send(msg);
+      node.status({});
+    });
+    node.on("close", function() {
       node.status({});
     });
   }
@@ -812,7 +1004,47 @@ module.exports = function(RED) {
         node.status({});
       }
     });
+    node.on("close", function() {
+      node.status({});
+    });
   }
   RED.nodes.registerType("repeat",RepeatNode);
+
+  function QuizButtonNode(config) {
+    RED.nodes.createNode(this,config);
+    var node = this;
+    var param = {};
+    if (typeof config.timeout !== 'undefined') {
+      param.timeout = config.timeout;
+    }
+    node.on("input", function(msg) {
+      node.recording = true;
+      node.status({fill:"blue",shape:"dot"});
+      node.robotHost = msg.robotHost;
+      _request(node, 'quiz-button', msg.robotHost, param, function(err, res) {
+        if (!node.recording) return;
+        node.log(res);
+        if (res == '[timeout]') {
+          msg.payload = 'timeout';
+          node.send([null, msg]);
+        } else
+        if (res == '[canceled]') {
+          msg.payload = 'canceled';
+          node.send([null, msg]);
+        } else {
+          msg.button = res;
+          node.send([msg, null]);
+        }
+        node.status({});
+      });
+    });
+    node.on('close', function(removed, done) {
+      node.recording = false;
+      _request(node, 'stop-quiz-button', node.robotHost, {});
+      node.status({});
+      done();
+    });
+  }
+  RED.nodes.registerType("quiz-button",QuizButtonNode);
 
 }

@@ -9,9 +9,39 @@ const config = require('./config');
 const APIKEY= config.docomo.api_key;
 const { exec, spawn } = require('child_process');
 const path = require('path');
+const fs = require('fs');
+const buttonClient = require('./button-client')();
+
+const quiz_master = process.env.QUIZ_MASTER || '_quiz_master_';
 
 var context = null;
-var quizAnswers = {};
+var led_mode = 'auto';
+
+var robotDataPath = process.argv[2] || 'robot-data.json';
+
+try {
+var robotJson = fs.readFileSync(robotDataPath);
+} catch(err) {
+}
+if (robotJson) {
+  var robotData = JSON.parse(robotJson);
+} else {
+  var robotData = {
+    quizAnswers: {},
+    quizEntry: {},
+  }
+}
+
+var saveTimeout = null;
+
+function writeRobotData() {
+  if (saveTimeout == null) {
+    saveTimeout = setTimeout(() => {
+      fs.writeFileSync(robotDataPath, JSON.stringify(robotData, null, '  '));
+      saveTimeout = null;
+    }, 1000);
+  }
+}
 
 function chat(message, context, tone, callback) {
   const json = {
@@ -94,6 +124,9 @@ function docomo_chat(payload, callback) {
       if (payload.silence) {
         if (callback) callback(err, utt);
       } else {
+        if (led_mode == 'auto') {
+          servoAction('led-off');
+        }
         servoAction('talk', payload.direction, () => {
           talk.voice = payload.voice;
           talk.play(utt, {
@@ -101,6 +134,9 @@ function docomo_chat(payload, callback) {
             volume: payload.volume,
             voice: payload.voice,
           }, () => {
+            // if (led_mode == 'auto') {
+            //   servoAction('led-on');
+            // }
             servoAction('idle');
             if (callback) callback(err, utt);
           });
@@ -121,12 +157,18 @@ function text_to_speech(payload, callback) {
       if (callback) callback();
     } else {
       playing = true;
+      if (led_mode == 'auto') {
+        servoAction('led-off');
+      }
       servoAction('talk', payload.direction, () => {
         talk.play(payload.message, {
           speed: payload.speed,
           volume: payload.volume,
           voice: payload.voice,
         }, () => {
+          // if (led_mode == 'auto') {
+          //   servoAction('led-on');
+          // }
           servoAction('idle');
           playing = false;
           if (callback) callback();
@@ -145,8 +187,12 @@ function speech_to_text(payload, callback) {
     setTimeout(() => {
       if (!done) {
         speech.recording = false;
-        if (callback) callback(null, '');
+        if (callback) callback(null, '[timeout]');
         speech.removeListener('data', listener);
+        speech.removeListener('button', buttonListener);
+        if (led_mode == 'auto') {
+          servoAction('led-off');
+        }
       }
       done = true;
     }, payload.timeout);
@@ -159,11 +205,61 @@ function speech_to_text(payload, callback) {
       speech.recording = false;
       if (callback) callback(null, data);
       speech.removeListener('data', listener);
+      speech.removeListener('button', buttonListener);
+      if (led_mode == 'auto') {
+        servoAction('led-off');
+      }
     }
     done = true;
   }
 
+  function buttonListener(state) {
+    if (state) {
+      if (!done) {
+        speech.recording = false;
+        if (callback) callback(null, '[canceled]');
+        if (led_mode == 'auto') {
+          servoAction('led-off');
+        }
+      }
+      done = true;
+    }
+  }
+
+  if (led_mode == 'auto') {
+    if (payload.timeout > 0) {
+        servoAction('led-on');
+    } else {
+        servoAction('led-off');
+    }
+  }
+
   speech.on('data', listener);
+  speech.on('button', buttonListener);
+}
+
+function quiz_button(payload, callback) {
+  var done = false;
+
+  if (payload.timeout != 0) {
+    setTimeout(() => {
+      if (!done) {
+        if (callback) callback(null, '[timeout]');
+        buttonClient.removeListener('button', listener);
+      }
+      done = true;
+    }, payload.timeout);
+  }
+
+  function listener(data) {
+    if (!done) {
+      if (callback) callback(null, data);
+      buttonClient.removeListener('button', listener);
+    }
+    done = true;
+  }
+
+  buttonClient.on('button', listener);
 }
 
 app.post('/docomo-chat', (req, res) => {
@@ -251,12 +347,86 @@ app.post('/download-from-google-drive', (req, res) => {
   }
 });
 
+function changeLed(payload) {
+  if (payload.action === 'auto') {
+    led_mode = 'auto';
+  }
+  if (payload.action === 'off') {
+    led_mode = 'manual';
+    servoAction('led-off');
+  }
+  if (payload.action === 'on') {
+    led_mode = 'manual';
+    servoAction('led-on');
+  }
+  if (payload.action === 'blink') {
+    led_mode = 'manual';
+    servoAction('led-blink');
+  }
+}
+
+function execSoundCommand(payload) {
+  const base = `${process.env.HOME}/Sound`;
+  const p = path.normalize(path.join(base, payload.sound));
+  if (p.indexOf(base) == 0) {
+    console.log(`/usr/bin/aplay ${p}`);
+    const _playone = spawn('/usr/bin/aplay', [p]);
+    _playone.on('close', function(code) {
+      console.log('close', code);
+    });
+  }
+}
+
+function quizPayload(payload) {
+  // if (payload.action === 'result') {
+  //   payload.result = quizAnswers[payload.question];
+  // }
+  if (payload.action === 'entry') {
+    payload.entry = Object.keys(robotData.quizEntry).map( key => {
+      return {
+        clientId: robotData.quizEntry[key].clientId,
+        name: robotData.quizEntry[key].name,
+      }
+    }).filter( v => v.name != quiz_master );
+    //payload.name = quiz_master;
+  }
+  if (payload.action === 'quiz-entry-init') {
+    robotData.quizEntry = {};
+    writeRobotData();
+    io.emit('quiz', quizPayload({
+      action: 'entry',
+      name: quiz_master,
+    }));
+    setTimeout(() => {
+      io.emit('quiz-reload-entry');
+    }, 3000);
+  }
+  if (payload.action === 'quiz-init') {
+    payload.quizStartTime = new Date();
+  }
+  if (payload.action === 'quiz-ranking') {
+    if (typeof payload.quizId !== 'undefined') {
+      payload.quizAnswers = robotData.quizAnswers[payload.quizId];
+    } else {
+      payload.quizAnswers = robotData.quizAnswers;
+    }
+    payload.name = quiz_master;
+  }
+  return payload;
+}
+
 app.post('/command', (req, res) => {
   if (req.body.type === 'quiz') {
-    if (req.body.action === 'result') {
-      req.body.result = quizAnswers[req.body.quizId];
-    }
-    io.emit('quiz', req.body);
+    io.emit('quiz', quizPayload(req.body));
+  }
+  if (req.body.type === 'led') {
+    changeLed(req.body);
+  }
+  if (req.body.type === 'button') {
+    buttonClient.doCommand(req.body);
+  }
+  if (req.body.type === 'sound') {
+    execSoundCommand(req.body);
   }
   res.send('OK');
 })
@@ -303,6 +473,10 @@ io.on('connection', function (socket) {
       console.error(err);
     }
   });
+  socket.on('stop-text-to-speech', function (payload, callback) {
+    talk.flush();
+    if (callback) callback('OK');
+  });
   socket.on('speech-to-text', function (payload, callback) {
     try {
       speech_to_text({
@@ -314,10 +488,14 @@ io.on('connection', function (socket) {
       console.error(err);
     }
   });
+  socket.on('stop-speech-to-text', function (payload, callback) {
+    speech.emit('data', 'stoped');
+    if (callback) callback('OK');
+  });
   socket.on('command', function(payload, callback) {
     try {
       const base = path.join(__dirname, 'command');
-      const cmd = path.join(base, payload.command);
+      const cmd = path.normalize(path.join(base, payload.command));
       const args = payload.args || '';
       if (cmd.indexOf(base) == 0) {
       } else {
@@ -341,15 +519,76 @@ io.on('connection', function (socket) {
     console.log('message', payload);
     if (callback) callback();
   });
+  socket.on('quiz-command', function(payload, callback) {
+    io.emit('quiz', quizPayload(payload));
+    if (callback) callback();
+  });
+  socket.on('led-command', function(payload, callback) {
+    changeLed(payload);
+    if (callback) callback();
+  });
+  socket.on('sound-command', (payload, callback) => {
+    execSoundCommand(payload);
+    if (callback) callback();
+  })
+  socket.on('button-command', function(payload, callback) {
+    buttonClient.doCommand(payload);
+    if (callback) callback();
+  });
   socket.on('quiz', function(payload, callback) {
     payload.time = new Date();
-    if (quizAnswers[payload.quizId] == null) {
-      quizAnswers[payload.quizId] = {};
+    if (typeof payload.question === 'undefined') {
+      //参加登録
+      if (typeof payload.clientId !== 'undefined') {
+        robotData.quizEntry[payload.clientId] = payload;
+        writeRobotData();
+        io.emit('quiz', quizPayload({
+          action: 'entry',
+          name: quiz_master,
+        }));
+      }
+    } else {
+      if (payload.name === quiz_master) return;
+      let quizId = payload.quizId;
+      if (robotData.quizAnswers[quizId] == null) {
+        robotData.quizAnswers[quizId] = {};
+      }
+      if (robotData.quizAnswers[quizId][payload.question] == null) {
+        robotData.quizAnswers[quizId][payload.question] = {};
+      }
+      const p = { ...payload };
+      delete p.question
+      delete p.quizId
+      robotData.quizAnswers[quizId][payload.question][payload.clientId] = p;
+      writeRobotData();
     }
-    quizAnswers[payload.quizId][payload.clientId] = payload;
     console.log('quiz', payload);
     if (callback) callback();
+  });
+  socket.on('quiz-button', function (payload, callback) {
+    try {
+      quiz_button({
+        timeout: (typeof payload.timeout === 'undefined') ? 30000 : payload.timeout,
+      }, (err, data) => {
+        if (callback) callback(data);
+      });
+    } catch(err) {
+      console.error(err);
+    }
+  });
+  socket.on('stop-quiz-button', function (payload, callback) {
+    buttonClient.emit('button', 'stoped');
+    if (callback) callback('OK');
   });
 });
 
 server.listen(3090, () => console.log('Example app listening on port 3090!'))
+
+const gpioSocket = (function() {
+  const io = require('socket.io-client');
+  return io('http://localhost:3091');
+})();
+
+gpioSocket.on('button', (payload) => {
+  speech.emit('button', payload.state);
+});
