@@ -25,6 +25,15 @@ const gpioSocket = (function() {
 })();
 
 gpioSocket.on('button', (payload) => {
+  if(payload.level == 0){
+    if (speech.recording == true){
+      speech.recording = false;
+      console.log("音声入力OFF");
+    }else{
+      speech.recording = true;
+      console.log("音声入力ON");
+    }
+  }
   // io.emit('button', payload);
 });
 
@@ -61,7 +70,9 @@ app.post('/command', (req, res) => {
 */
 
 speech.on('data', function(data) {
+  console.log("ないです．");
   console.log(data);
+  console.log("やめたらこの仕事！");
 });
 
 function speech_to_text(payload, callback) {
