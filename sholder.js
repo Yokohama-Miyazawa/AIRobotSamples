@@ -10,12 +10,14 @@ const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) :
 
 speech.recording = false;
 
-app.use(bodyParser.json({ type: 'application/json' }))
-app.use(bodyParser.raw({ type: 'application/*' }))
+// app.use(bodyParser.json({ type: 'application/json' }))
+// app.use(bodyParser.raw({ type: 'application/*' }))
 
+/*
 app.post('command', (req, res) => {
   res.send('OK');
 });
+*/
 
 const gpioSocket = (function() {
   const io = require('socket.io-client');
@@ -23,9 +25,10 @@ const gpioSocket = (function() {
 })();
 
 gpioSocket.on('button', (payload) => {
-  io.emit('button', payload);
+  // io.emit('button', payload);
 });
 
+/*
 function execSoundCommand(payload) {
   const base = `${process.env.HOME}/Sound`;
   const p = path.normalize(path.join(base, payload.sound));
@@ -37,11 +40,15 @@ function execSoundCommand(payload) {
     });
   }
 }
+*/
 
+/*
 function execLedCommand(payload) {
   gpioSocket.emit('led-command', payload);
 }
+*/
 
+/*
 app.post('/command', (req, res) => {
   if (req.body.type === 'led') {
     execLedCommand(req.body);
@@ -51,6 +58,7 @@ app.post('/command', (req, res) => {
   }
   res.send('OK');
 })
+*/
 
 speech.on('data', function(data) {
   console.log(data);
@@ -84,6 +92,7 @@ function speech_to_text(payload, callback) {
   speech.on('data', listener);
 }
 
+/*
 io.on('connection', function (socket) {
   socket.on('disconnect', function () {
     speech.recording = false;
@@ -113,5 +122,6 @@ io.on('connection', function (socket) {
     if (callback) callback('OK');
   });
 })
+*/
 
-server.listen(3090, () => console.log('Example app listening on port 3090!'))
+// server.listen(3090, () => console.log('Example app listening on port 3090!'))
