@@ -70,16 +70,13 @@ app.post('/command', (req, res) => {
 */
 
 speech.on('data', function(data) {
-  console.log("ないです．");
+  const io = require('socket.io-client');
+  const socket = io('http://sanae.local:3090');
   console.log(data);
-  console.log("やめたらこの仕事！");
-
-  var io = require('socket.io-client');
-  var socket = io('http://marisa.local:3090');
   socket.emit('docomo-chat',
-              {message: data.results, voice: 'reimu', volume: '10', tone: 'kansai_dialect', silence: false,},
-              function () { console.log('DONE.'); process.exit(); }
-             );
+	      {message: data, voice: 'reimu', volume: '100', tone: 'kansai_dialect', silence: false,},
+	      function () { console.log('DONE.'); /*process.exit();*/ }
+	     );
 });
 
 function speech_to_text(payload, callback) {
