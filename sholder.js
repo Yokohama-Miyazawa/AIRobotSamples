@@ -1,3 +1,4 @@
+const request = require('request');
 const EventEmitter = require('events');
 // const app = require('express')()
 // const server = require('http').Server(app);
@@ -73,10 +74,14 @@ speech.on('data', function(data) {
   const io = require('socket.io-client');
   const socket = io('http://sanae.local:3090');
   console.log(data);
+  /*
   socket.emit('docomo-chat',
 	      {message: data, voice: 'reimu', volume: '100', tone: 'kansai_dialect', silence: false,},
-	      function () { console.log('DONE.'); /*process.exit();*/ }
+	      function () { console.log('DONE.'); }
 	     );
+  */
+  var options = { uri: "http://sanae.local:3090/debug-speech", form: data };
+  request.post(options, function () { console.log('DONE.'); });
 });
 
 function speech_to_text(payload, callback) {
