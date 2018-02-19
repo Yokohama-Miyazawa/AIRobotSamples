@@ -1,6 +1,9 @@
 const request = require('request');
 const EventEmitter = require('events');
 const config = require('./config');
+const app = require('express')()
+const server = require('http').Server(app);
+const io = require('socket.io')(server);
 const spawn = require('child_process').spawn;
 const path = require('path');
 const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) : require('./speech'))();
@@ -66,3 +69,5 @@ function speech_to_text(payload, callback) {
 
   speech.on('data', listener);
 }
+
+server.listen(3090, () => console.log('Example app listening on port 3090!'))

@@ -1,4 +1,4 @@
 #!/bin/bash
 cd `dirname $0`
-node sholder.js &
+node sholder-server.js &
 sudo node button-gpio.js
