@@ -327,6 +327,15 @@ app.post('/debug-speech', (req, res) => {
 });
 
 /*
+  肩乗せ端末からの命令受信用
+*/
+app.post('/sholder-speech', (req, res) => {
+  // console.log(req.body.message.toString('utf-8'));
+  speech.emit('data', req.body.message.toString('utf-8'));
+  res.send('OK');
+});
+
+/*
   Google Drive の PDFファイルを Documents フォルダにダウンロードする POST リクエスト
  
   curlコマンド使用例
