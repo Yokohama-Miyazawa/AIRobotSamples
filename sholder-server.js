@@ -4,11 +4,15 @@ const config = require('./config');
 const app = require('express')()
 const server = require('http').Server(app);
 const io = require('socket.io')(server);
+const bodyParser = require('body-parser');
 const spawn = require('child_process').spawn;
 const path = require('path');
 const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) : require('./speech'))();
+const talk = require('./talk');
 
 speech.recording = false;
+
+app.use(bodyParser.json({ type: 'application/json' }))
 
 const gpioSocket = (function() {
   const io = require('socket.io-client');
@@ -38,11 +42,21 @@ speech.on('data', function(data) {
 	      function () { console.log('DONE.'); }
 	     );
   */
-  var options = { uri: "http://sanae.local:3090/sholder-speech", 
+  var options = { uri: "http://sanae.local:1880/sholder-server", 
 	          body: JSON.stringify({source: "marisa.local:3090", message: data}), 
 	          headers: {'content-type': 'application/json'}
                 };
-  request.post(options, function () { console.log('DONE.'); });
+  request.post(options, function (err, res) { var result = JSON.parse(res.body);
+	                                      console.log(result);
+	                                      speech.recording = false;
+	                                      talk.play(result.message, {
+					        volume: 10,
+					      }, () => {
+						speech.recording = true;
+					        console.log('SAID.');
+					      });
+	                                      console.log('DONE.'); 
+                                            });
 });
 
 function speech_to_text(payload, callback) {
