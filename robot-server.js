@@ -332,12 +332,13 @@ app.post('/debug-speech', (req, res) => {
 app.post('/sholder-speech', (req, res) => {
   console.log(req.body.message.toString('utf-8'));
   speech.emit('data', req.body.message.toString('utf-8'));
+  // buttonClient.emit('button', req.body);
   res.send('OK');
 });
 
 /*
   Google Drive の PDFファイルを Documents フォルダにダウンロードする POST リクエスト
- 
+
   curlコマンド使用例
   curl -X POST -d '{"url":"https://drive.google.com/file/d/[FILE-ID]/view?usp=sharing", "filename":"test.pdf"}' http:/192.168.X.X:3090/download-from-google-drive -H "Content-Type:application/json"
 */
@@ -358,7 +359,7 @@ app.post('/download-from-google-drive', (req, res) => {
       });
     } else {
       res.send(`NG`);
-    } 
+    }
   } catch(err) {
     res.send(`NG`);
   }
