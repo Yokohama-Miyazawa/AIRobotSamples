@@ -38,9 +38,9 @@ speech.on('data', function(data) {
 	      function () { console.log('DONE.'); }
 	     );
   */
-  var options = { uri: "http://sanae.local:3090/sholder-speech", 
-	          body: JSON.stringify({source: "marisa.local:3090", message: data}), 
-	          headers: {'content-type': 'application/json'}
+  var options = { uri: "http://sanae.local:3090/sholder-speech",
+	                body: JSON.stringify({source: "marisa.local:3090", message: data}),
+	                headers: {'content-type': 'application/json'}
                 };
   request.post(options, function () { console.log('DONE.'); });
 });
