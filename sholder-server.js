@@ -29,16 +29,19 @@ gpioSocket.on('button', (payload) => {
 });
 
 speech.on('data', function(data) {
-  const io = require('socket.io-client');
-  const socket = io('http://sanae.local:3090');
   console.log(data);
   /*
+  const io = require('socket.io-client');
+  const socket = io('http://sanae.local:3090');
   socket.emit('docomo-chat',
 	      {message: data, voice: 'reimu', volume: '100', tone: 'kansai_dialect', silence: false,},
 	      function () { console.log('DONE.'); }
 	     );
   */
-  var options = { uri: "http://sanae.local:3090/debug-speech", form: data };
+  var options = { uri: "http://sanae.local:3090/sholder-speech", 
+	          body: JSON.stringify({source: "marisa.local:3090", message: data}), 
+	          headers: {'content-type': 'application/json'}
+                };
   request.post(options, function () { console.log('DONE.'); });
 });
 
