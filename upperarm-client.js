@@ -73,7 +73,7 @@ speech.on('data', function(data) {
     }
   } else if (data === "シャットダウン") {
     gpioSocket.emit('led-command', { action: 'on', value: 1 });
-    var message = "シャットダウンします．赤いランプが消えた30秒後に，本体外部のスイッチをオフにしてください．";
+    var message = "終了します．赤いランプが消えた30秒後に，本体外部のスイッチをオフにしてください．";
     //console.log(message);
     speech.recording = false;
     talk.play(message,
