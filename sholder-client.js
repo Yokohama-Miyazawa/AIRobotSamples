@@ -11,7 +11,7 @@ const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) :
 const talk = require('./talk');
 const exec = require('child_process').exec;
 
-const speech_volume = 10; // 音声読み上げのボリューム
+var speech_volume = 10; // 音声読み上げのボリューム
 
 speech.recording = false;
 
@@ -27,9 +27,11 @@ gpioSocket.on('button', (payload) => {
     if (speech.recording == true){
       speech.recording = false;
       console.log("音声入力OFF");
+      gpioSocket.emit('led-command', { action: 'off', value: 1 });
     }else{
       speech.recording = true;
       console.log("音声入力ON");
+      gpioSocket.emit('led-command', { action: 'on', value: 1 });
     }
   }
   // io.emit('button', payload);
@@ -37,9 +39,41 @@ gpioSocket.on('button', (payload) => {
 
 speech.on('data', function(data) {
   console.log(data);
-  if (data === "シャットダウン") {
-    var message = "シャットダウンします．ピーという音が鳴ってから30秒後に，本体外部のスイッチをオフにしてください．ピーーー．";
-    console.log(message);
+
+  if (data === "ボリュームアップ") {
+    if (speech_volume >= 100) {
+      var message = "ボリュームは既に最大です．";
+      speech.recording = false;
+      talk.play(message,
+                {volume: speech_volume}, () => { speech.recording = true;
+              });
+    } else {
+      var message = "ボリュームを上げます．";
+      speech.recording = false;
+      talk.play(message, 
+                {volume: speech_volume}, () => { speech_volume += 2;
+                                               speech.recording = true;
+              });
+    }
+  } else if (data === "ボリュームダウン") {
+    if (speech_volume <= 2){
+      var message = "ボリュームは既に最小です．";
+      speech.recording = false;
+      talk.play(message,
+                {volume: speech_volume}, () => { speech.recording = true;
+              });
+    } else {
+      var message = "ボリュームを下げます．";
+      speech.recording = false;
+      talk.play(message,
+                {volume: speech_volume}, () => { speech_volume -= 2;
+                                               speech.recording = true;
+              });
+    }
+  } else if (data === "シャットダウン") {
+    gpioSocket.emit('led-command', { action: 'on', value: 1 });
+    var message = "シャットダウンします．赤いランプが消えた30秒後に，本体外部のスイッチをオフにしてください．";
+    //console.log(message);
     speech.recording = false;
     talk.play(message,
               {volume: speech_volume}, () => {
@@ -90,9 +124,11 @@ function speech_to_text(payload, callback) {
   speech.on('data', listener);
 }
 
-server.listen(3090, () => { console.log('Example app listening on port 3090!'); 
+server.listen(3090, () => { console.log('Example app listening on port 3090!');
+                            gpioSocket.emit('led-command', { action: 'blink', value: 1 }); 
                             var message = "起動しました．音声入力をオンにするには，本体横のボタンを押してください．";
                             console.log(message);
                             speech.recording = false;
-                            talk.play(message, {volume: speech_volume}, () => {});
+                            talk.play(message, {volume: speech_volume}, () => { gpioSocket.emit('led-command', { action: 'off', value: 1 });
+                                    });
             })
