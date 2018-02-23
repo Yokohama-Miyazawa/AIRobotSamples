@@ -9,6 +9,9 @@ const spawn = require('child_process').spawn;
 const path = require('path');
 const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) : require('./speech'))();
 const talk = require('./talk');
+const exec = require('child_process').exec;
+
+const speech_volume = 10; // 音声読み上げのボリューム
 
 speech.recording = false;
 
@@ -34,29 +37,29 @@ gpioSocket.on('button', (payload) => {
 
 speech.on('data', function(data) {
   console.log(data);
-  /*
-  const io = require('socket.io-client');
-  const socket = io('http://sanae.local:3090');
-  socket.emit('docomo-chat',
-	      {message: data, voice: 'reimu', volume: '100', tone: 'kansai_dialect', silence: false,},
-	      function () { console.log('DONE.'); }
-	     );
-  */
-  var options = { uri: "http://sanae.local:1880/sholder-server", 
-	          body: JSON.stringify({source: "marisa.local:3090", message: data}), 
-	          headers: {'content-type': 'application/json'}
+  if (data === "シャットダウン") {
+    var message = "シャットダウンします．"
+    console.log(message);
+    speech.recording = false;
+    talk.play(message,
+              {volume: speech_volume}, () => {
+                exec('sudo shutdown -h now', (err, stdout, stderr) => {});
+            });
+  } else {
+  var options = { uri: config.sholder.server_uri,
+                  body: JSON.stringify({message: data}),
+                  headers: {'content-type': 'application/json'}
                 };
   request.post(options, function (err, res) { var result = JSON.parse(res.body);
-	                                      console.log(result);
-	                                      speech.recording = false;
-	                                      talk.play(result.message, {
-					        volume: 10,
-					      }, () => {
-						speech.recording = true;
-					        console.log('SAID.');
-					      });
-	                                      console.log('DONE.'); 
+	                                            console.log(result);
+	                                            speech.recording = false;
+	                                            talk.play(result.message,
+                                                        { volume: speech_volume, }, () => { speech.recording = true;
+					                                                                       console.log('SAID.');
+					                                            });
+	                                            console.log('DONE.');
                                             });
+  }
 });
 
 function speech_to_text(payload, callback) {
