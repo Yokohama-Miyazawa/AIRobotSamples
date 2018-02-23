@@ -38,7 +38,7 @@ gpioSocket.on('button', (payload) => {
 speech.on('data', function(data) {
   console.log(data);
   if (data === "シャットダウン") {
-    var message = "シャットダウンします．"
+    var message = "シャットダウンします．ピーという音が鳴ってから30秒後に，本体外部のスイッチをオフにしてください．ピーーー．";
     console.log(message);
     speech.recording = false;
     talk.play(message,
@@ -90,4 +90,9 @@ function speech_to_text(payload, callback) {
   speech.on('data', listener);
 }
 
-server.listen(3090, () => console.log('Example app listening on port 3090!'))
+server.listen(3090, () => { console.log('Example app listening on port 3090!'); 
+                            var message = "起動しました．音声入力をオンにするには，本体横のボタンを押してください．";
+                            console.log(message);
+                            speech.recording = false;
+                            talk.play(message, {volume: speech_volume}, () => {});
+            })
