@@ -16,6 +16,8 @@ module.exports = {
   },
   sholder: {
     server_uri: "http://marisa.local:1880/sholder-server",
+    init_volume: 50,
+    volume_change: 15,
   },
   voice_hat: true,
 }

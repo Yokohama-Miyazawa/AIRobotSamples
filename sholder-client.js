@@ -11,7 +11,8 @@ const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) :
 const talk = require('./talk');
 const exec = require('child_process').exec;
 
-var speech_volume = 10; // 音声読み上げのボリューム
+var speech_volume = config.sholder.init_volume; // 音声読み上げのボリューム
+var volume_change = config.sholder.volume_change; // 一度のボリューム変更幅
 
 speech.recording = false;
 
@@ -51,12 +52,12 @@ speech.on('data', function(data) {
       var message = "ボリュームを上げます．";
       speech.recording = false;
       talk.play(message, 
-                {volume: speech_volume}, () => { speech_volume += 2;
+                {volume: speech_volume}, () => { speech_volume += volume_change;
                                                speech.recording = true;
               });
     }
   } else if (data === "ボリュームダウン") {
-    if (speech_volume <= 2){
+    if (speech_volume - volume_change <= 0){
       var message = "ボリュームは既に最小です．";
       speech.recording = false;
       talk.play(message,
@@ -66,7 +67,7 @@ speech.on('data', function(data) {
       var message = "ボリュームを下げます．";
       speech.recording = false;
       talk.play(message,
-                {volume: speech_volume}, () => { speech_volume -= 2;
+                {volume: speech_volume}, () => { speech_volume -= volume_change;
                                                speech.recording = true;
               });
     }
