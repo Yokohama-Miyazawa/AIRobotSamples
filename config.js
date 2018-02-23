@@ -14,5 +14,8 @@ module.exports = {
     targetId: 'AIRobot000',
     clientId: 'AIRobot000',
   },
-  voice_hat: false,
+  sholder: {
+    server_uri: "http://marisa.local:1880/sholder-server",
+  },
+  voice_hat: true,
 }

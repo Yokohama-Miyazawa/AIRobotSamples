@@ -327,8 +327,18 @@ app.post('/debug-speech', (req, res) => {
 });
 
 /*
+  肩乗せ端末からの命令受信用
+*/
+app.post('/sholder-speech', (req, res) => {
+  console.log(req.body.message.toString('utf-8'));
+  speech.emit('data', req.body.message.toString('utf-8'));
+  // buttonClient.emit('button', req.body);
+  res.send('OK');
+});
+
+/*
   Google Drive の PDFファイルを Documents フォルダにダウンロードする POST リクエスト
- 
+
   curlコマンド使用例
   curl -X POST -d '{"url":"https://drive.google.com/file/d/[FILE-ID]/view?usp=sharing", "filename":"test.pdf"}' http:/192.168.X.X:3090/download-from-google-drive -H "Content-Type:application/json"
 */
@@ -349,7 +359,7 @@ app.post('/download-from-google-drive', (req, res) => {
       });
     } else {
       res.send(`NG`);
-    } 
+    }
   } catch(err) {
     res.send(`NG`);
   }
@@ -464,6 +474,16 @@ app.post('/command', (req, res) => {
   if (req.body.type === 'button') {
     buttonClient.doCommand(req.body);
   }
+  if (req.body.type === 'movie') {
+    if (playerSocket) {
+      playerSocket.emit('movie', req.body, (data) => {
+        res.send(data);
+      });
+      return;
+    } else {
+      res.send({ state: 'none' });
+    }
+  }
   if (req.body.type === 'sound') {
     execSoundCommand(req.body);
   }
@@ -472,6 +492,18 @@ app.post('/command', (req, res) => {
 
 const server = require('http').Server(app);
 const io = require('socket.io')(server);
+
+const iop = io.of('player');
+var playerSocket = null;
+
+iop.on('connection', function (socket) {
+  console.log('connected iop');
+  playerSocket = socket;
+  socket.on('disconnect', function () {
+    playerSocket = null;
+    console.log('disconnect iop');
+  });
+});
 
 io.on('connection', function (socket) {
   console.log('connected');
@@ -632,4 +664,15 @@ const gpioSocket = (function() {
 
 gpioSocket.on('button', (payload) => {
   speech.emit('button', payload.state);
+});
+
+const io_client = require('socket.io-client');
+const client_socket = io_client('http://localhost:4010');
+
+client_socket.on('connect', () => {
+  console.log('connected');
+});
+
+client_socket.on('sheet', (sheetData) => {
+  io.emit('sheet', { sheet: sheetData });
 });
