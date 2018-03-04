@@ -693,6 +693,13 @@ client_socket.on('connect', () => {
   console.log('connected');
 });
 
+var sheetStatus = {};
+
 client_socket.on('sheet', (sheetData) => {
+  sheetStatus = sheetData;
   io.emit('sheet', { sheet: sheetData });
+});
+
+app.post('/sheet-status', (req, res) => {
+  res.json({ sheet: sheetStatus });
 });
