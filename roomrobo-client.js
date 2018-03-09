@@ -1,6 +1,6 @@
 const talk = require('./talk');
 const io_client = require('socket.io-client');
-const client_socket = io_client('http://marisa.local:3090');
+const client_socket = io_client('http://asm-server.local:3090');
 
 const speechs = [ "どうしましたか？",
                   "おトイレ行きたいですか？",
@@ -33,4 +33,4 @@ setInterval(() => {
     var speech = speechs[Math.floor(Math.random() * speechs.length)];
     talk.play(speech, {volume: 50}, () => { console.log(speech); });
   }
-}, 5000);
+}, 10000);
