@@ -7,7 +7,7 @@ const speechs = [ "どうしましたか？",
                   "おトイレ行きたいですか？",
                   "お腹が空きましたか？",
                   "今日は、お外は寒いですよ？",
-                  "今おトイレはいっぱいですよ，ちょっと待ってください？",
+                  "今，おトイレはいっぱいですよ，ちょっと待ってください？",
                   "介護士さんを呼びましょうか？",
                 ]
 
@@ -32,6 +32,6 @@ client_socket.on('sheet', (sheetData) => {
 setInterval(() => {
   if (talk_state) {
     var speech = speechs[Math.floor(Math.random() * speechs.length)];
-    talk.play(speech, {volume: 50}, () => { console.log(speech); });
+    talk.play(speech, {volume: 100}, () => { console.log(speech); });
   }
 }, 10000);
