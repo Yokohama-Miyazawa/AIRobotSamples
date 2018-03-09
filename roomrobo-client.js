@@ -1,4 +1,5 @@
 const talk = require('./talk');
+const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) : require('./speech'))();
 const io_client = require('socket.io-client');
 const client_socket = io_client('http://asm-server.local:3090');
 
