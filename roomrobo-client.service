@@ -1,0 +1,11 @@
+Description=Talking Owl app
+
+[Service]
+ExecStart=/bin/bash -c './roomrobo-client.sh'
+WorkingDirectory=/home/pi/AIRobotSamples
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
+

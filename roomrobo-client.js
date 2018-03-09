@@ -29,6 +29,9 @@ client_socket.on('sheet', (sheetData) => {
   talk_state = false;
 });
 
+var message = "こんにちは．僕はおしゃべりロボのフクロウくんです．準備完了しました．どうぞよろしくお願いします．";
+talk.play(message, {volume: 100}, () => { console.log(message); });
+
 setInterval(() => {
   if (talk_state) {
     var speech = speechs[Math.floor(Math.random() * speechs.length)];
