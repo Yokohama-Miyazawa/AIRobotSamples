@@ -11,8 +11,8 @@ const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) :
 const talk = require('./talk');
 const exec = require('child_process').exec;
 
-var speech_volume = config.sholder.init_volume; // 音声読み上げのボリューム
-var volume_change = config.sholder.volume_change; // 一度のボリューム変更幅
+var speech_volume = config.upperarm.init_volume; // 音声読み上げのボリューム
+var volume_change = config.upperarm.volume_change; // 一度のボリューム変更幅
 
 speech.recording = false;
 
@@ -51,7 +51,7 @@ speech.on('data', function(data) {
     } else {
       var message = "ボリュームを上げます．";
       speech.recording = false;
-      talk.play(message, 
+      talk.play(message,
                 {volume: speech_volume}, () => { speech_volume += volume_change;
                                                speech.recording = true;
               });
@@ -81,7 +81,7 @@ speech.on('data', function(data) {
                 exec('sudo shutdown -h now', (err, stdout, stderr) => {});
             });
   } else {
-  var options = { uri: config.sholder.server_uri,
+  var options = { uri: config.upperarm.server_uri,
                   body: JSON.stringify({message: data}),
                   headers: {'content-type': 'application/json'}
                 };
@@ -126,7 +126,7 @@ function speech_to_text(payload, callback) {
 }
 
 server.listen(3090, () => { console.log('Example app listening on port 3090!');
-                            gpioSocket.emit('led-command', { action: 'blink', value: 1 }); 
+                            gpioSocket.emit('led-command', { action: 'blink', value: 1 });
                             var message = "起動しました．音声入力をオンにするには，本体横のボタンを押してください．";
                             console.log(message);
                             speech.recording = false;

@@ -14,10 +14,14 @@ module.exports = {
     targetId: 'AIRobot000',
     clientId: 'AIRobot000',
   },
-  sholder: {
-    server_uri: "http://marisa.local:1880/sholder-server",
+  upperarm: {
+    server_uri: "http://asm-server.local:1880/sholder-server",
     init_volume: 50,
     volume_change: 15,
+  },
+  roomrobo: {
+    server_url: "http://asm-server.local:3090",
+    init_volume: 100,
   },
   voice_hat: true,
 }

@@ -1,7 +1,8 @@
+const config = require('./config');
 const talk = require('./talk');
 const speech = (() => (process.env['SPEECH'] === 'off') ? (new EventEmitter()) : require('./speech'))();
 const io_client = require('socket.io-client');
-const client_socket = io_client('http://asm-server.local:3090');
+const client_socket = io_client(config.roomrobo.server_url);
 
 const speechs = [ "どうしましたか？",
                   "おトイレ行きたいですか？",
@@ -30,11 +31,11 @@ client_socket.on('sheet', (sheetData) => {
 });
 
 var message = "こんにちは．僕はおしゃべりロボのフクロウくんです．準備完了しました．どうぞよろしくお願いします．";
-talk.play(message, {volume: 100}, () => { console.log(message); });
+talk.play(message, {volume: config.roomrobo.init_volume}, () => { console.log(message); });
 
 setInterval(() => {
   if (talk_state) {
     var speech = speechs[Math.floor(Math.random() * speechs.length)];
-    talk.play(speech, {volume: 100}, () => { console.log(speech); });
+    talk.play(speech, {volume: config.roomrobo.init_volume}, () => { console.log(speech); });
   }
 }, 10000);
