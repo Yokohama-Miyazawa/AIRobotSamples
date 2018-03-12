@@ -125,11 +125,15 @@ function speech_to_text(payload, callback) {
   speech.on('data', listener);
 }
 
-server.listen(3090, () => { console.log('Example app listening on port 3090!');
-                            gpioSocket.emit('led-command', { action: 'blink', value: 1 });
-                            var message = "起動しました．音声入力をオンにするには，本体横のボタンを押してください．";
-                            console.log(message);
-                            speech.recording = false;
-                            talk.play(message, {volume: speech_volume}, () => { gpioSocket.emit('led-command', { action: 'off', value: 1 });
-                                    });
-            })
+function start() {
+  gpioSocket.emit('led-command', { action: 'blink', value: 1 });
+  var message = "起動しました．音声入力をオンにするには，本体横のボタンを押してください．";
+  console.log(message);
+  speech.recording = false;
+  talk.play(message,
+            {volume: speech_volume}, 
+            () => { gpioSocket.emit('led-command', { action: 'off', value: 1 });
+          });
+}
+
+start();
