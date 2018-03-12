@@ -132,7 +132,7 @@ function start() {
             {volume: speech_volume},
             () => {});
 
-  setTimeout(() -> {
+  setTimeout(() => {
     message = "起動が完了しました．音声入力をオンにするには，本体横のボタンを押してください．";
     console.log(message);
     speech.recording = false;
