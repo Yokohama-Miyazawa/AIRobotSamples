@@ -127,13 +127,20 @@ function speech_to_text(payload, callback) {
 
 function start() {
   gpioSocket.emit('led-command', { action: 'blink', value: 1 });
-  var message = "起動しました．音声入力をオンにするには，本体横のボタンを押してください．";
-  console.log(message);
-  speech.recording = false;
+  var message = "起動中です．しばらくお待ちください．"
   talk.play(message,
-            {volume: speech_volume}, 
-            () => { gpioSocket.emit('led-command', { action: 'off', value: 1 });
-          });
+            {volume: speech_volume},
+            () => {});
+
+  setTimeout(() => {
+    message = "起動が完了しました．音声入力をオンにするには，本体横のボタンを押してください．";
+    console.log(message);
+    speech.recording = false;
+    gpioSocket.emit('led-command', { action: 'off', value: 1 });
+    talk.play(message,
+              {volume: speech_volume}, 
+              () => {});
+    }, 20 * 1000);
 }
 
 start();
