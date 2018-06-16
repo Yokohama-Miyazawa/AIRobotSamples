@@ -6,6 +6,8 @@ const config = require('./config');
 function Speech() {
   var t = new EventEmitter();
   t.recording = true;
+  t.writing = true;
+  t.recordingTime = 0;
 
   const requestOpts = {
     config: {
@@ -17,7 +19,7 @@ function Speech() {
     interimResults: false // If you want interim results, set this to true
   };
 
-  if (config.voice_hat) {
+  if (config.voice_hat == true && config.usb_mic == false) {
     var device = 'plughw:0,0';
   } else {
     var device = 'plughw:1,0';
@@ -32,15 +34,26 @@ function Speech() {
   var micInputStream = micInstance.getAudioStream();
 
   var recognizeStream = null;
+  var startTime = 0;
+
+  // マイクの音声認識の閾値を変更
+  t.on('mic_threshold', function (threshold) {
+      micInputStream.changeSilentThreshold(threshold);
+  });
 
   micInputStream.on('data', function (data) {
     if (micInputStream.incrConsecSilenceCount() > micInputStream.getNumSilenceFramesExitThresh()) {
       if (recognizeStream) {
         recognizeStream.end();
         recognizeStream = null;
+        if (startTime > 0) {
+          t.recordingTime += (new Date()).getTime() - startTime;
+          startTime = 0;
+        }
       }
     } else {
       if (recognizeStream == null && t.recording) {
+        startTime = (new Date()).getTime();
         recognizeStream = speech.streamingRecognize(requestOpts)
           .on('error', console.error)
           .on('data', (data) => {
@@ -49,15 +62,22 @@ function Speech() {
               const alternatives = data.results[0].alternatives.map(v => v);
               const sentence = alternatives.shift();
               t.emit('data', sentence.transcript);
+              if (!t.writing) {
+                t.recording = false;
+              }
             }
           })
       }
-      if (t.recording) {
+      if (t.recording && t.writing) {
         recognizeStream.write(data);
       } else {
         if (recognizeStream) {
           recognizeStream.end();
           recognizeStream = null;
+          if (startTime > 0) {
+            t.recordingTime += (new Date()).getTime() - startTime;
+            startTime = 0;
+          }
         }
       }
     }
@@ -69,18 +89,22 @@ function Speech() {
 
   micInputStream.on('startComplete', function () {
     console.log("Got SIGNAL startComplete");
+    t.status = 'start';
   });
 
   micInputStream.on('stopComplete', function () {
     console.log("Got SIGNAL stopComplete");
+    t.status = 'stop';
   });
 
   micInputStream.on('pauseComplete', function () {
     console.log("Got SIGNAL pauseComplete");
+    t.status = 'pause';
   });
 
   micInputStream.on('resumeComplete', function () {
     console.log("Got SIGNAL resumeComplete");
+    t.status = 'start';
   });
 
   micInputStream.on('silence', function () {

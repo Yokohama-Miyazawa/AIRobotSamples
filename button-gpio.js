@@ -27,6 +27,9 @@ function changeLed(payload) {
   if (payload.action === 'blink') {
     led_mode = 'blink';
   }
+  if (payload.action === 'power') {
+    led_mode = 'power';
+  }
   if (payload.action === 'active') {
     led_mode = 'off';
   }
@@ -66,6 +69,14 @@ if (raspiMode) {
         io.emit('button', { level: level, state: (level==0) });
       }
     });
+    
+    setInterval(() => {
+      const level = button.digitalRead();
+      if (buttonLevel != level) {
+        buttonLevel = level;
+        io.emit('button', { level: level, state: (level==0) });
+      }
+    }, 1000)
   });
 }
 

@@ -188,7 +188,13 @@ class Play {
     const { robotHost } = msg;
     const host = robotHost;
     this.host = host;
-    const messages = this.getMessage(params.message);
+    const messages = this.getMessage(params.message).filter( line => {
+      //コメント
+      if (line.length > 0) {
+        return (line[0].indexOf('//') != 0)
+      }
+      return false;
+    });
     var cmd = [];
 
     const doCmd = (callback) => {
@@ -198,9 +204,11 @@ class Play {
       }
       const d = cmd.shift().trim();
       const page = d.match('(\\d+)page') || d.match('(\\d+)ページ');
-      var delay = d.match('(\\d+)s') || d.match('(\\d+)秒');
+      // var delay = d.match('(\\d+)s') || d.match('(\\d+)秒');
+      var delay = d.match('(^([1-9]\\d*|0)(\\.\\d+)?)s$') || d.match('(^([1-9]\\d*|0)(\\.\\d+)?)秒$');
       if (delay == null) {
-        delay = d.match('(\\d+)');
+        // delay =  d.match('(\\d+)');
+        delay = d.match('(^([1-9]\\d*|0)(\\.\\d+)?)');
       }
       var speed = d.match('(\\d+)speed') || d.match('(\\d+)スピード');
       if (speed == null) {
@@ -368,7 +376,7 @@ class Play {
         });
       } else
       if (delay !== null) {
-        this.delay(parseInt(delay[1]), (err, res) => {
+        this.delay(parseFloat(delay[1]), (err, res) => {
           if (err) {
             callback(err, 'ERR');
             return;
@@ -401,7 +409,7 @@ class Play {
           if (msg == '') {
           } else {
             if (params.silence) {
-              callback(err, msg);
+              callback(null, msg);
             } else {
               this.textToSpeech(node, msg, host, params, (err, res) => {
                 callback(err, msg);
@@ -434,7 +442,7 @@ class Play {
           if (msg == '') {
           } else {
             if (params.silence) {
-              callback(err, msg);
+              callback(null, msg);
             } else {
               this.textToSpeech(node, msg, host, params, (err, res) => {
                 callback(err, msg);
@@ -466,7 +474,7 @@ class Play {
           if (msg == '') {
           } else {
             if (params.silence) {
-              callback(err, msg);
+              callback(null, msg);
             } else {
               this.textToSpeech(node, msg, host, params, (err, res) => {
                 callback(err, msg);
@@ -574,6 +582,9 @@ module.exports = function(RED) {
     }
     if (typeof config.algorithm !== 'undefined' && config.algorithm !== 'keep') {
       param.algorithm = config.algorithm;
+    }
+    if (typeof config.sensitivity !== 'undefined' && config.sensitivity !== 'keep') {
+      param.sensitivity = config.sensitivity;
     }
     return param;
   }
@@ -686,12 +697,16 @@ module.exports = function(RED) {
     if (typeof config.timeout !== 'undefined') {
       param.timeout = config.timeout;
     }
+    if (typeof config.sensitivity !== 'undefined') {
+      param.sensitivity = config.sensitivity;
+    }
     node.on("input", function(msg) {
       node.recording = true;
       node.status({fill:"blue",shape:"dot"});
       node.robotHost = msg.robotHost;
       _request(node, 'speech-to-text', msg.robotHost, param, function(err, res) {
         if (!node.recording) return;
+        node.recording = false;
         node.log(res);
         if (res == '[timeout]') {
           msg.payload = 'timeout';
@@ -706,8 +721,14 @@ module.exports = function(RED) {
             msg.button = res;
             delete res.button;
             node.send([null, msg]);
+          } else
+          if (res.speechRequest) {
+            msg.speechRequest = true;
+            msg.payload = res.payload;
+            node.send([msg, null]);
           } else {
             msg.payload = res;
+            delete msg.speechRequest;
             node.send([msg, null]);
           }
         }
@@ -1079,6 +1100,7 @@ module.exports = function(RED) {
       node.robotHost = msg.robotHost;
       _request(node, 'quiz-button', msg.robotHost, param, function(err, res) {
         if (!node.recording) return;
+        node.recording = false;
         node.log(res);
         if (res == '[timeout]') {
           msg.payload = 'timeout';

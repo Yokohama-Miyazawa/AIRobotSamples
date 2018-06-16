@@ -1,7 +1,7 @@
-Description=Cardboard Robot Service
+Description=Robot Movie Client Service
 
 [Service]
-ExecStart=/bin/bash -c './robot-server.sh'
+ExecStart=/bin/bash -c './movie-client.sh'
 WorkingDirectory=/home/pi/AIRobotSamples
 #EnvironmentFile=-/etc/default/robot-server
 Restart=always
@@ -9,3 +9,4 @@ User=pi
 
 [Install]
 WantedBy=multi-user.target
+

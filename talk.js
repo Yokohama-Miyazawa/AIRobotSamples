@@ -1,6 +1,7 @@
 const EventEmitter = require('events');
 const spawn = require('child_process').spawn;
 const path = require('path');
+const macvoice_speedrate = 180 / 100;
 
 function Talk() {
 	var t = new EventEmitter();
@@ -9,6 +10,8 @@ function Talk() {
 	t.voice = 'reimu';
 	t.speed = 95;
 	t.volume = 80;
+	t.dummy = false;
+	t.macvoice = false;
 
   t.say = function(words, params, callback) {
   	const voice = params.voice;
@@ -26,17 +29,33 @@ function Talk() {
   			return;
   		}
       console.log(cont);
-  		if (voice == 'marisa') {
-  			const _playone = spawn(path.join(__dirname,'talk-f2.sh'), [`-s`, speed, `-g`, volume, `　${cont}`]);
-  			_playone.on('close', function(code) {
-  				playone();
-  			});
-  		} else {
-  			const _playone = spawn(path.join(__dirname,'talk-f1.sh'), [`-s`, speed, `-g`, volume, `　${cont}`]);
-  			_playone.on('close', function(code) {
-  				playone();
-  			});
-  		}
+			if (this.dummy) {
+				playone();
+			} else if (this.macvoice) {
+				if (voice == 'marisa') {
+					const _playone = spawn(path.join(__dirname, 'talk-mac-Otoya.sh'), [`-r`, speed * macvoice_speedrate, `　${cont}`]);
+					_playone.on('close', function (code) {
+						playone();
+					});
+				} else {
+					const _playone = spawn(path.join(__dirname, 'talk-mac-Kyoko.sh'), [`-r`, speed * macvoice_speedrate, `　${cont}`]);
+					_playone.on('close', function (code) {
+						playone();
+					});
+				}
+			} else {
+				if (voice == 'marisa') {
+					const _playone = spawn(path.join(__dirname,'talk-f2.sh'), [`-s`, speed, `-g`, volume, `　${cont}`]);
+					_playone.on('close', function(code) {
+						playone();
+					});
+				} else {
+					const _playone = spawn(path.join(__dirname,'talk-f1.sh'), [`-s`, speed, `-g`, volume, `　${cont}`]);
+					_playone.on('close', function(code) {
+						playone();
+					});
+				}
+			}
     }
     playone();
   }
